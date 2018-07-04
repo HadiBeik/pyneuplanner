@@ -8,7 +8,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 from ReplayBuffer import ReplayBuffer
 from ActorNetwork import ActorNetwork
 from CriticNetwork import CriticNetwork
-from memory_profiler import profile
 import math
 from non_physical_simulation import simulator
 import sys
@@ -51,7 +50,7 @@ class DdpgAgent:
         self.LimitOutput = False
         self.LimitValue = 5 * math.pi / 180  # 5 degrees
         self.a_d = 2  # of actuated joints
-        self.s_d = 6  # num of features in state
+        self.s_d = 8  # num of features in state
         self.STORY_N = 10 if self.TRAIN else 1  # max number of Stories
         self.FINE_TUNE_N = 10  # number of episodes after learning
         self.EXPLORE_N = 200  # defines the exploration decay rate
@@ -166,22 +165,20 @@ class DdpgAgent:
                     a_t = np.array((a_t_x[0, 0], a_t_y[0, 0]))
 
                 #  running simulator for the step
-                observation, hindsight, r_t, done = self.env.step(a_t, False)
+                observation, hindsight_s,hindsight_s1, r_t, done = self.env.step(a_t, False)
 
                 #  storing next state
-                s_t1 = np.array(observation).reshape(6)
-                self.hindsight = False
+                s_t1 = np.array(observation).reshape(8)
+                self.hindsight = True
                 if self.hindsight:
                     # Save to memory buffer
-                    for i in range(len(hindsight)):
-                        self.buffer.add(hindsight[i], a_t, 10, s_t1, done)
+                    for i in range(len(hindsight_s)):
+                        self.buffer.add(np.array(hindsight_s[i]).reshape(8), a_t, .02, np.array(hindsight_s1[i]).reshape(8), done)
 
-                    #  Load from memory buffer
-                    batch = self.buffer.getBatch(self.BATCH_SIZE)
-                else:
-                    self.buffer.add_main_memory(np.float16(s_t), np.float16(a_t), np.float16(r_t), np.float16(s_t1),
-                                                 done)
-                    batch = self.buffer.get_batch_main_memory(self.BATCH_SIZE )
+
+                self.buffer.add_main_memory(np.float16(s_t), np.float16(a_t), np.float16(r_t), np.float16(s_t1),
+                                             done)
+                batch = self.buffer.get_batch_main_memory(self.BATCH_SIZE )
                 states = np.asarray([e[0] for e in batch])
                 actions = np.asarray([e[1] for e in batch])
                 rewards = np.asarray([e[2] for e in batch])

@@ -1,10 +1,8 @@
 import pygame
 import math
 import numpy as np
-import pypot.dynamixel
 import time
 import random
-import nuke
 import math
 import Queue
 
@@ -31,8 +29,8 @@ class simulator:
         self.screen_size = np.array((800, 700))
         self.rand_sign = (-1, 1)
         self.vel_init = np.zeros(2)
-        self.min_vel = np.array((2, 2))
-        self.max_vel = np.array((10, 10))
+        self.min_vel = np.array((10, 10))
+        self.max_vel = np.array((20, 20))
         self.min_pos = np.array((0, 0))
         self.max_pos = np.array((self.screen_size[0], self.screen_size[1] - 100))
         self.pos = np.array((0, 0))
@@ -101,8 +99,8 @@ class simulator:
         if self.timer > self.window_size - 1:
             h_states = self.all_pose_calculation(target, False)
             self.robot_pos = self.next_robot_pos(.016, target, self.robot_pos)
-            h_states1 = self.all_pose_calculation(target,False)
-            pygame.draw.circle(self.screen, self.black, (int(self.robot_pos[0]), int(self.robot_pos[1])), 20, 0)
+            h_states1 = self.all_pose_calculation(target, False)
+            pygame.draw.circle(self.screen, self.black, (int(self.robot_pos[0]), int(self.robot_pos[1])), 5, 0)
         intersect_ball = self.pos_prediction(self.robot_delta_t(target))
         dist = math.sqrt(((intersect_ball[0] - target[0]) * (intersect_ball[0] - target[0])) + (
                 (intersect_ball[1] - target[1]) * (intersect_ball[1] - target[1])))
@@ -111,13 +109,21 @@ class simulator:
             reward = 10
             done = True
         else:
-            reward = 0
+            reward = -0.01
         if self.out_of_bound:
             done = True
+        history = self.history.queue
+        history[0][0] = history[0][0] / self.max_pos[0]
+        history[0][1] = history[0][1] / self.max_pos[1]
+        history[1][0] = history[1][0] / self.max_pos[0]
+        history[1][1] = history[1][1] / self.max_pos[1]
+        history[2][0] = history[2][0] / self.max_pos[0]
+        history[2][1] = history[2][1] / self.max_pos[1]
+        robot_pos = (self.robot_pos[0] / self.screen_size[0],self.robot_pos[1] / self.screen_size[1])
 
-        return list(self.history.queue).append(self.robot_pos), h_states, h_states1, reward, done
+        return (history[0], history[1], history[2], robot_pos), h_states, h_states1, reward, done
 
-    def all_pose_calculation(self, target,next):
+    def all_pose_calculation(self, target, next):
         t_robot = self.robot_delta_t(target)
         if next:
             t_robot = t_robot - self.frame_duration
@@ -134,12 +140,13 @@ class simulator:
             angle = (i * math.pi / 180) * 10
             temp_pos = []
             for i in range(self.window_size):
-                temp_pos.append((int(sizes[i] * math.cos(angle) + target[0]),
-                                 int(sizes[i] * math.sin(angle) + target[1])))
+                temp_pos.append(((sizes[i] * math.cos(angle) + target[0])/self.max_pos[0],
+                                 (sizes[i] * math.sin(angle) + target[1])/self.max_pos[1]))
                 pygame.draw.circle(self.screen, self.black,
                                    (int(sizes[i] * math.cos(angle) + target[0]),
                                     int(sizes[i] * math.sin(angle) + target[1])), 2, 0)
-            temp_pos.append(self.robot_pos)
+            robot_pos = (self.robot_pos[0] / self.screen_size[0], self.robot_pos[1] / self.screen_size[1])
+            temp_pos.append(robot_pos)
             positions.append(temp_pos)
         pygame.display.update()
         return np.array(positions)
