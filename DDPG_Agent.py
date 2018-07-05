@@ -50,7 +50,7 @@ class DdpgAgent:
         self.LimitOutput = False
         self.LimitValue = 5 * math.pi / 180  # 5 degrees
         self.a_d = 2  # of actuated joints
-        self.s_d = 8  # num of features in state
+        self.s_d = 7  # num of features in state
         self.STORY_N = 10 if self.TRAIN else 1  # max number of Stories
         self.FINE_TUNE_N = 10  # number of episodes after learning
         self.EXPLORE_N = 200  # defines the exploration decay rate
@@ -60,7 +60,7 @@ class DdpgAgent:
         self.check_queue_size = 10
         self.TARGET_MINIMUM_SIZE = 10
         self.TARGET_MAXIMUM_SIZE = 100 if self.DYNAMIC_SIZE_TARGET else 10
-        self.TERMINAL_WRITE = False
+        self.TERMINAL_WRITE = True
         self.terminal = False
         self.buffer = ReplayBuffer(self.MEMORY_SIZE)  # Create replay buffer
         self.vis_buffer = ReplayBuffer(360 * 360 * 9)
@@ -148,17 +148,23 @@ class DdpgAgent:
             total_reward = 0
             self.env.init()
             observation, hindsight_s, hindsight_s1, reward, done = self.env.step((200, 200), True)
-            s_t = np.array(observation).reshape(8)
+            s_t = np.array(observation).reshape(7)
             for j in range(self.steps_max):  # Iteration Number
                 total_iteration_num = total_iteration_num + 1
                 loss = 0
+                self.hindsight = False
                 if np.random.random() > self.EPSILON:
+                    if np.random.random() < self.EPSILON:
+                        self.hindsight = True
+                    self.hindsight = True
                     a_type = "Exploit"
                     a_t = self.actor.model.predict(s_t.reshape(1, s_t.shape[0]))[0]  # rescale
                     a_t_x = self.env.min_pos[0] + ((self.env.max_pos[0] - self.env.min_pos[0]) * a_t[0])
                     a_t_y = self.env.min_pos[1] + ((self.env.max_pos[1] - self.env.min_pos[1]) * a_t[1])
                     a_t = np.array((a_t_x, a_t_y))
                 else:
+                    if np.random.random() > self.EPSILON:
+                        self.hindsight = True
                     a_type = "Explore"
                     a_t_x = np.random.uniform(-self.env.min_pos[0], self.env.max_pos[0], size=(1, 1))
                     a_t_y = np.random.uniform(-self.env.min_pos[1], self.env.max_pos[1], size=(1, 1))
@@ -168,16 +174,16 @@ class DdpgAgent:
                 observation, hindsight_s,hindsight_s1, r_t, done = self.env.step(a_t, False)
 
                 #  storing next state
-                s_t1 = np.array(observation).reshape(8)
-                self.hindsight = True
+                s_t1 = np.array(observation).reshape(7)
+                a_t[0] = a_t[0] / 600
+                a_t[1] = a_t[1] / 400
                 if self.hindsight:
                     # Save to memory buffer
-                    for i in range(len(hindsight_s)):
-                        self.buffer.add(np.array(hindsight_s[i]).reshape(8), a_t, .02, np.array(hindsight_s1[i]).reshape(8), done)
+                    for p in range(len(hindsight_s)):
+                        self.buffer.add_main_memory(np.array(hindsight_s[p]).reshape(7), a_t, 1, np.array(hindsight_s1[p]).reshape(7), False)
 
 
-                self.buffer.add_main_memory(np.float16(s_t), np.float16(a_t), np.float16(r_t), np.float16(s_t1),
-                                             done)
+                self.buffer.add_main_memory(np.float16(s_t), np.float16(a_t), np.float16(r_t), np.float16(s_t1),done)
                 batch = self.buffer.get_batch_main_memory(self.BATCH_SIZE )
                 states = np.asarray([e[0] for e in batch])
                 actions = np.asarray([e[1] for e in batch])
@@ -218,7 +224,7 @@ class DdpgAgent:
                     print("-------------------")
                     print("Action", a_type)
                     print("Episode", i, "Step", i, "Reward", r_t, "Loss", loss, "Epsilon", self.EPSILON)
-                    print("X1 Y1 Z1 " + str(a_t[0][0]) + "    " + str(a_t[0][1]) + " " + str(a_t[0][1]))
+                    print("X1 Y1" + str(a_t[0]) + "    " + str(a_t[1]))
                     print("total reward" + str(total_reward))
                     print("-------------------")
 

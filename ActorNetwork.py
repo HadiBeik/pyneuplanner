@@ -14,7 +14,7 @@ class ActorNetwork(object):
         self.BATCH_SIZE = BATCH_SIZE
         self.TAU = TAU
         self.LEARNING_RATE = LEARNING_RATE
-        self.stateDim=8
+        self.stateDim=7
         self.actionDim=2
         K.set_session(sess)
         #  create actor network
